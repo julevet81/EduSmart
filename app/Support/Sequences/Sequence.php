@@ -9,38 +9,43 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Gap-free per-tenant counters (student numbers now, receipt/invoice numbers in the finance phase).
+ * Gap-free per-tenant counters (student numbers, invoice numbers, receipt numbers).
  * Call inside the same DB transaction as the record that consumes the number, so a rollback frees it.
  */
 final class Sequence
 {
     public static function next(string $name): int
     {
-        $tenantId = app(TenantContext::class)->require()->getKey();
+        return self::reserve($name, 1);
+    }
+
+    /** Reserves $count consecutive numbers and returns the FIRST one (e.g. bulk invoice generation). */
+    public static function reserve(string $name, int $count): int
+    {
+        $tenantId = (int) app(TenantContext::class)->require()->getKey();
 
         try {
-            return self::increment($tenantId, $name);
+            return self::increment($tenantId, $name, $count);
         } catch (UniqueConstraintViolationException) {
             // Two requests created the very first row at once: the loser retries against the existing row.
-            return self::increment($tenantId, $name);
+            return self::increment($tenantId, $name, $count);
         }
     }
 
-    private static function increment(int $tenantId, string $name): int
+    private static function increment(int $tenantId, string $name, int $count): int
     {
-        return DB::transaction(static function () use ($tenantId, $name): int {
+        return DB::transaction(static function () use ($tenantId, $name, $count): int {
             $row = DB::table('sequences')->where('tenant_id', $tenantId)->where('name', $name)->lockForUpdate()->first();
 
             if ($row === null) {
-                DB::table('sequences')->insert(['tenant_id' => $tenantId, 'name' => $name, 'value' => 1]);
+                DB::table('sequences')->insert(['tenant_id' => $tenantId, 'name' => $name, 'value' => $count]);
 
                 return 1;
             }
 
-            $next = (int) $row->value + 1;
-            DB::table('sequences')->where('id', $row->id)->update(['value' => $next]);
+            DB::table('sequences')->where('id', $row->id)->update(['value' => (int) $row->value + $count]);
 
-            return $next;
+            return (int) $row->value + 1;
         });
     }
 }

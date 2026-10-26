@@ -7,15 +7,27 @@ namespace App\Providers;
 use App\Models\Absence;
 use App\Models\AcademicYear;
 use App\Models\Enrollment;
+use App\Models\FeePlan;
 use App\Models\Group;
 use App\Models\Guardian;
 use App\Models\Holiday;
+use App\Models\Invoice;
 use App\Models\Lesson;
 use App\Models\Level;
+use App\Models\Payment;
+use App\Models\PaymentAllocation;
+use App\Models\CashClosing;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
+use App\Models\PayrollAdjustment;
+use App\Models\Payslip;
+use App\Models\SalaryContract;
+use App\Models\StaffMember;
 use App\Models\PlatformAdmin;
 use App\Models\Room;
 use App\Models\ScheduleSlot;
 use App\Models\Student;
+use App\Models\StudentFee;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\Tenant;
@@ -63,6 +75,18 @@ class AppServiceProvider extends ServiceProvider
             'schedule_slot' => ScheduleSlot::class,
             'lesson' => Lesson::class,
             'absence' => Absence::class,
+            'fee_plan' => FeePlan::class,
+            'student_fee' => StudentFee::class,
+            'invoice' => Invoice::class,
+            'payment' => Payment::class,
+            'payment_allocation' => PaymentAllocation::class,
+            'expense_category' => ExpenseCategory::class,
+            'expense' => Expense::class,
+            'staff_member' => StaffMember::class,
+            'salary_contract' => SalaryContract::class,
+            'payroll_adjustment' => PayrollAdjustment::class,
+            'payslip' => Payslip::class,
+            'cash_closing' => CashClosing::class,
         ]);
 
         Model::shouldBeStrict((bool) config('saas.strict_models'));

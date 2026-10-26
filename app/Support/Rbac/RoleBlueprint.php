@@ -40,15 +40,21 @@ final class RoleBlueprint
             'secretary' => [
                 ...array_filter($views, static fn (Permission $p): bool => ! in_array($p, [
                     Permission::UsersView, Permission::RolesView, Permission::AuditView, Permission::SettingsView,
-                    Permission::StudentsViewMedical,
+                    Permission::StudentsViewMedical, Permission::FeesView,
+                    Permission::ExpensesView, Permission::PayrollView, Permission::CashView,
                 ], true)),
                 Permission::StudentsManage, Permission::GuardiansManage, Permission::EnrollmentsManage,
-                Permission::ScheduleManage, Permission::AttendanceRecord,
+                Permission::ScheduleManage, Permission::AttendanceRecord, Permission::PaymentsRecord,
             ],
 
             'accountant' => [
                 Permission::StudentsView, Permission::GuardiansView, Permission::EnrollmentsView,
                 Permission::GroupsView, Permission::LevelsView, Permission::AcademicYearsView,
+                Permission::SubjectsView, Permission::AttendanceView,
+                Permission::FeesView, Permission::FeesManage, Permission::InvoicesView, Permission::InvoicesManage,
+                Permission::PaymentsView, Permission::PaymentsRecord, Permission::FinanceReports,
+                Permission::ExpensesView, Permission::ExpensesManage, Permission::PayrollView, Permission::PayrollManage,
+                Permission::PayrollPay, Permission::CashView, Permission::CashClose,
             ],
 
             // Teachers only see and take attendance of their own lessons (TeacherScope), nothing else.

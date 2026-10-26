@@ -10,22 +10,36 @@ use App\Http\Controllers\Tenant\AcademicYearController;
 use App\Http\Controllers\Tenant\AttendanceController;
 use App\Http\Controllers\Tenant\AuditLogController;
 use App\Http\Controllers\Tenant\EnrollmentController;
+use App\Http\Controllers\Tenant\FeePlanController;
+use App\Http\Controllers\Tenant\FinanceReportController;
 use App\Http\Controllers\Tenant\GroupController;
 use App\Http\Controllers\Tenant\GuardianController;
 use App\Http\Controllers\Tenant\HolidayController;
+use App\Http\Controllers\Tenant\InvoiceController;
 use App\Http\Controllers\Tenant\LessonController;
 use App\Http\Controllers\Tenant\LevelController;
+use App\Http\Controllers\Tenant\PaymentController;
 use App\Http\Controllers\Tenant\RoleController;
 use App\Http\Controllers\Tenant\RoomController;
 use App\Http\Controllers\Tenant\ScheduleSlotController;
 use App\Http\Controllers\Tenant\StudentAttendanceController;
+use App\Http\Controllers\Tenant\StudentAccountController;
 use App\Http\Controllers\Tenant\StudentController;
+use App\Http\Controllers\Tenant\StudentFeeController;
 use App\Http\Controllers\Tenant\StudentGuardianController;
 use App\Http\Controllers\Tenant\SubjectController;
 use App\Http\Controllers\Tenant\TeacherController;
 use App\Http\Controllers\Tenant\TermController;
 use App\Http\Controllers\Tenant\TrackController;
 use App\Http\Controllers\Tenant\UserController;
+use App\Http\Controllers\Tenant\CashController;
+use App\Http\Controllers\Tenant\ExpenseCategoryController;
+use App\Http\Controllers\Tenant\ExpenseController;
+use App\Http\Controllers\Tenant\PayrollAdjustmentController;
+use App\Http\Controllers\Tenant\PayslipController;
+use App\Http\Controllers\Tenant\ProfitLossController;
+use App\Http\Controllers\Tenant\SalaryContractController;
+use App\Http\Controllers\Tenant\StaffMemberController;
 use App\Http\Middleware\EnsureAnyPermission;
 use Illuminate\Support\Facades\Route;
 
@@ -136,6 +150,58 @@ Route::prefix('v1')->group(function () use ($crud): void {
                 ->middleware('can:attendance.record');
             Route::get('students/{student}/attendance-summary', [StudentAttendanceController::class, 'summary'])
                 ->whereNumber('student')->middleware('can:attendance.view');
+
+            // Finance (amounts are integer centimes of DZD)
+            $crud('fee-plans', FeePlanController::class, 'fees');
+            Route::post('fee-plans/{plan}/assign-group', [StudentFeeController::class, 'assignGroup'])->whereNumber('plan')
+                ->middleware('can:fees.manage');
+            $crud('student-fees', StudentFeeController::class, 'fees');
+
+            Route::get('invoices', [InvoiceController::class, 'index'])->middleware('can:invoices.view');
+            Route::get('invoices/{id}', [InvoiceController::class, 'show'])->whereNumber('id')->middleware('can:invoices.view');
+            Route::post('invoices', [InvoiceController::class, 'store'])->middleware('can:invoices.manage');
+            Route::post('invoices/generate', [InvoiceController::class, 'generate'])->middleware('can:invoices.manage');
+            Route::post('invoices/{id}/void', [InvoiceController::class, 'void'])->whereNumber('id')->middleware('can:invoices.void');
+
+            Route::get('payments', [PaymentController::class, 'index'])->middleware('can:payments.view');
+            Route::get('payments/{id}', [PaymentController::class, 'show'])->whereNumber('id')->middleware('can:payments.view');
+            Route::post('payments', [PaymentController::class, 'store'])->middleware('can:payments.record');
+            Route::post('payments/{id}/reverse', [PaymentController::class, 'reverse'])->whereNumber('id')->middleware('can:payments.reverse');
+
+            Route::get('students/{student}/account', [StudentAccountController::class, 'show'])->whereNumber('student')
+                ->middleware('can:invoices.view');
+            Route::post('students/{student}/allocate-credit', [StudentAccountController::class, 'allocateCredit'])
+                ->whereNumber('student')->middleware('can:payments.record');
+
+            Route::get('reports/finance/summary', [FinanceReportController::class, 'summary'])->middleware('can:finance.reports');
+            Route::get('reports/finance/receivables', [FinanceReportController::class, 'receivables'])->middleware('can:finance.reports');
+
+            // Expenses, payroll and cash register (amounts are integer centimes of DZD)
+            $crud('expense-categories', ExpenseCategoryController::class, 'expenses', destroy: true);
+            Route::get('expenses', [ExpenseController::class, 'index'])->middleware('can:expenses.view');
+            Route::get('expenses/{id}', [ExpenseController::class, 'show'])->whereNumber('id')->middleware('can:expenses.view');
+            Route::post('expenses', [ExpenseController::class, 'store'])->middleware('can:expenses.manage');
+            Route::post('expenses/{id}/reverse', [ExpenseController::class, 'reverse'])->whereNumber('id')->middleware('can:expenses.reverse');
+
+            $crud('staff', StaffMemberController::class, 'payroll');
+            $crud('salary-contracts', SalaryContractController::class, 'payroll');
+            Route::get('payroll-adjustments', [PayrollAdjustmentController::class, 'index'])->middleware('can:payroll.view');
+            Route::post('payroll-adjustments', [PayrollAdjustmentController::class, 'store'])->middleware('can:payroll.manage');
+            Route::post('payroll-adjustments/{id}/cancel', [PayrollAdjustmentController::class, 'cancel'])->whereNumber('id')
+                ->middleware('can:payroll.manage');
+
+            Route::get('payslips', [PayslipController::class, 'index'])->middleware('can:payroll.view');
+            Route::get('payslips/{id}', [PayslipController::class, 'show'])->whereNumber('id')->middleware('can:payroll.view');
+            Route::post('payslips/generate', [PayslipController::class, 'generate'])->middleware('can:payroll.manage');
+            Route::post('payslips/{id}/pay', [PayslipController::class, 'pay'])->whereNumber('id')->middleware('can:payroll.pay');
+            Route::post('payslips/{id}/void', [PayslipController::class, 'void'])->whereNumber('id')->middleware('can:payroll.manage');
+            Route::post('payslips/{id}/reverse', [PayslipController::class, 'reverse'])->whereNumber('id')->middleware('can:payroll.reverse');
+
+            Route::get('cash/position', [CashController::class, 'position'])->middleware('can:cash.view');
+            Route::get('cash/closings', [CashController::class, 'closings'])->middleware('can:cash.view');
+            Route::post('cash/closings', [CashController::class, 'close'])->middleware('can:cash.close');
+
+            Route::get('reports/finance/profit-loss', ProfitLossController::class)->middleware('can:finance.reports');
         });
     });
 });

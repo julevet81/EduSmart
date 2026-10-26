@@ -49,6 +49,31 @@ enum Permission: string
     /** Teachers: see and take attendance of THEIR OWN lessons only (row-level rule in TeacherScope). */
     case TeachingOwn = 'teaching.own';
 
+    // Finance
+    case FeesView = 'fees.view';
+    case FeesManage = 'fees.manage';
+    case InvoicesView = 'invoices.view';
+    case InvoicesManage = 'invoices.manage';
+    /** Voiding an invoice removes money owed: kept apart from day-to-day invoicing. */
+    case InvoicesVoid = 'invoices.void';
+    case PaymentsView = 'payments.view';
+    case PaymentsRecord = 'payments.record';
+    /** Reversing a payment removes money received: owner/manager only by default. */
+    case PaymentsReverse = 'payments.reverse';
+    case FinanceReports = 'finance.reports';
+
+    // Expenses, payroll and cash register
+    case ExpensesView = 'expenses.view';
+    case ExpensesManage = 'expenses.manage';
+    case ExpensesReverse = 'expenses.reverse';
+    case PayrollView = 'payroll.view';
+    /** Staff, contracts, adjustments (advances/deductions/bonuses) and generating payslips. */
+    case PayrollManage = 'payroll.manage';
+    case PayrollPay = 'payroll.pay';
+    case PayrollReverse = 'payroll.reverse';
+    case CashView = 'cash.view';
+    case CashClose = 'cash.close';
+
     /** @return list<string> */
     public static function values(): array
     {
