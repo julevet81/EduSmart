@@ -1,0 +1,8 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+    # Start at 5, raise to 6+ once the baseline is clean.
+    level: 5
