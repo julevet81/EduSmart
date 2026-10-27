@@ -8,15 +8,19 @@ use App\Models\Absence;
 use App\Models\AcademicYear;
 use App\Models\Enrollment;
 use App\Models\FeePlan;
+use App\Models\Grade;
 use App\Models\Group;
 use App\Models\Guardian;
 use App\Models\Holiday;
 use App\Models\Invoice;
 use App\Models\Lesson;
 use App\Models\Level;
+use App\Models\Message;
+use App\Models\MessageTemplate;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\CashClosing;
+use App\Models\Exam;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\PayrollAdjustment;
@@ -29,9 +33,11 @@ use App\Models\ScheduleSlot;
 use App\Models\Student;
 use App\Models\StudentFee;
 use App\Models\Subject;
+use App\Models\SubjectCoefficient;
 use App\Models\Teacher;
 use App\Models\Tenant;
 use App\Models\Term;
+use App\Models\TermRemark;
 use App\Models\Track;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -87,6 +93,12 @@ class AppServiceProvider extends ServiceProvider
             'payroll_adjustment' => PayrollAdjustment::class,
             'payslip' => Payslip::class,
             'cash_closing' => CashClosing::class,
+            'exam' => Exam::class,
+            'grade' => Grade::class,
+            'subject_coefficient' => SubjectCoefficient::class,
+            'term_remark' => TermRemark::class,
+            'message_template' => MessageTemplate::class,
+            'message' => Message::class,
         ]);
 
         Model::shouldBeStrict((bool) config('saas.strict_models'));

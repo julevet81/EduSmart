@@ -74,6 +74,26 @@ enum Permission: string
     case CashView = 'cash.view';
     case CashClose = 'cash.close';
 
+    // Exams and results
+    case ExamsView = 'exams.view';
+    /** Exams, subject coefficients, term remarks, locking/unlocking. Teachers use teaching.own for THEIR exams. */
+    case ExamsManage = 'exams.manage';
+    case GradesRecord = 'grades.record';
+    /** Group rankings and report cards. */
+    case ResultsView = 'results.view';
+
+    // Messages and notifications
+    case MessagesView = 'messages.view';
+    case MessagesSend = 'messages.send';
+    case TemplatesView = 'templates.view';
+    case TemplatesManage = 'templates.manage';
+    /** Runs the automatic absence / overdue-payment alerts. */
+    case AlertsRun = 'alerts.run';
+
+    // Parent / student portal
+    /** Creates and manages the login accounts of guardians and students. */
+    case PortalManage = 'portal.manage';
+
     /** @return list<string> */
     public static function values(): array
     {

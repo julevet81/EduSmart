@@ -40,7 +40,19 @@ use App\Http\Controllers\Tenant\PayslipController;
 use App\Http\Controllers\Tenant\ProfitLossController;
 use App\Http\Controllers\Tenant\SalaryContractController;
 use App\Http\Controllers\Tenant\StaffMemberController;
+use App\Http\Controllers\Tenant\ExamController;
+use App\Http\Controllers\Tenant\GradeController;
+use App\Http\Controllers\Tenant\ResultsController;
+use App\Http\Controllers\Tenant\SubjectCoefficientController;
+use App\Http\Controllers\Tenant\TermRemarkController;
+use App\Http\Controllers\Tenant\AlertController;
+use App\Http\Controllers\Tenant\InboxController;
+use App\Http\Controllers\Tenant\MessageController;
+use App\Http\Controllers\Tenant\MessageTemplateController;
+use App\Http\Controllers\Tenant\PortalAccountController;
+use App\Http\Controllers\Tenant\PortalController;
 use App\Http\Middleware\EnsureAnyPermission;
+use App\Http\Middleware\EnsurePortalAccess;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -202,6 +214,64 @@ Route::prefix('v1')->group(function () use ($crud): void {
             Route::post('cash/closings', [CashController::class, 'close'])->middleware('can:cash.close');
 
             Route::get('reports/finance/profit-loss', ProfitLossController::class)->middleware('can:finance.reports');
+
+            // Exams, grades and results. A teacher (teaching.own) reaches only their own exams.
+            Route::get('exams', [ExamController::class, 'index'])->middleware($anyOf('exams.view', 'teaching.own'));
+            Route::get('exams/{id}', [ExamController::class, 'show'])->whereNumber('id')->middleware($anyOf('exams.view', 'teaching.own'));
+            Route::post('exams', [ExamController::class, 'store'])->middleware($anyOf('exams.manage', 'teaching.own'));
+            Route::patch('exams/{id}', [ExamController::class, 'update'])->whereNumber('id')->middleware($anyOf('exams.manage', 'teaching.own'));
+            Route::delete('exams/{id}', [ExamController::class, 'destroy'])->whereNumber('id')->middleware($anyOf('exams.manage', 'teaching.own'));
+            Route::post('exams/{id}/lock', [ExamController::class, 'lock'])->whereNumber('id')->middleware('can:exams.manage');
+            Route::post('exams/{id}/unlock', [ExamController::class, 'unlock'])->whereNumber('id')->middleware('can:exams.manage');
+            Route::get('exams/{id}/grades', [GradeController::class, 'show'])->whereNumber('id')->middleware($anyOf('exams.view', 'teaching.own'));
+            Route::put('exams/{id}/grades', [GradeController::class, 'record'])->whereNumber('id')->middleware($anyOf('grades.record', 'teaching.own'));
+
+            $crud('subject-coefficients', SubjectCoefficientController::class, 'exams', destroy: true);
+            Route::put('students/{student}/term-remarks/{term}', [TermRemarkController::class, 'upsert'])
+                ->whereNumber(['student', 'term'])->middleware('can:exams.manage');
+            Route::get('groups/{group}/results', [ResultsController::class, 'group'])->whereNumber('group')->middleware('can:results.view');
+            Route::get('students/{student}/report-card', [ResultsController::class, 'reportCard'])->whereNumber('student')
+                ->middleware('can:results.view');
+
+            // Messages: templates, outbox, alerts and the user's own inbox (no permission: own rows only)
+            $crud('message-templates', MessageTemplateController::class, 'templates', destroy: true);
+            Route::get('messages', [MessageController::class, 'index'])->middleware('can:messages.view');
+            Route::get('messages/{id}', [MessageController::class, 'show'])->whereNumber('id')->middleware('can:messages.view');
+            Route::post('messages', [MessageController::class, 'store'])->middleware(['can:messages.send', 'throttle:20,1']);
+            Route::post('messages/{id}/cancel', [MessageController::class, 'cancel'])->whereNumber('id')->middleware('can:messages.send');
+            Route::post('messages/{id}/retry', [MessageController::class, 'retry'])->whereNumber('id')->middleware('can:messages.send');
+
+            Route::post('alerts/absences/run', [AlertController::class, 'absences'])->middleware(['can:alerts.run', 'throttle:10,1']);
+            Route::post('alerts/payments/run', [AlertController::class, 'payments'])->middleware(['can:alerts.run', 'throttle:10,1']);
+
+            // Portal accounts (staff side) and the parent / student portal (read-only, own children only)
+            Route::get('portal-accounts/{type}/{id}', [PortalAccountController::class, 'show'])
+                ->whereIn('type', ['guardians', 'students'])->whereNumber('id')->middleware('can:portal.manage');
+            Route::post('portal-accounts/{type}/{id}', [PortalAccountController::class, 'store'])
+                ->whereIn('type', ['guardians', 'students'])->whereNumber('id')->middleware(['can:portal.manage', 'throttle:20,1']);
+            Route::patch('portal-accounts/{type}/{id}', [PortalAccountController::class, 'update'])
+                ->whereIn('type', ['guardians', 'students'])->whereNumber('id')->middleware('can:portal.manage');
+
+            Route::prefix('portal')->middleware(EnsurePortalAccess::class)->group(function (): void {
+                Route::get('students', [PortalController::class, 'students']);
+                Route::prefix('students/{student}')->where(['student' => '[0-9]+'])->group(function (): void {
+                    Route::get('/', [PortalController::class, 'student']);
+                    Route::get('absences', [PortalController::class, 'absences']);
+                    Route::get('lessons', [PortalController::class, 'lessons']);
+                    Route::get('attendance-summary', [StudentAttendanceController::class, 'summary']);
+                    Route::get('report-card', [ResultsController::class, 'reportCard']);
+                    Route::middleware(EnsurePortalAccess::class.':finance')->group(function (): void {
+                        Route::get('account', [StudentAccountController::class, 'show']);
+                        Route::get('invoices', [PortalController::class, 'invoices']);
+                        Route::get('payments', [PortalController::class, 'payments']);
+                    });
+                });
+            });
+
+            Route::get('inbox', [InboxController::class, 'index']);
+            Route::get('inbox/unread-count', [InboxController::class, 'unreadCount']);
+            Route::post('inbox/read-all', [InboxController::class, 'markAllRead']);
+            Route::post('inbox/{id}/read', [InboxController::class, 'markRead'])->whereNumber('id');
         });
     });
 });

@@ -44,7 +44,8 @@ final class RoleBlueprint
                     Permission::ExpensesView, Permission::PayrollView, Permission::CashView,
                 ], true)),
                 Permission::StudentsManage, Permission::GuardiansManage, Permission::EnrollmentsManage,
-                Permission::ScheduleManage, Permission::AttendanceRecord, Permission::PaymentsRecord,
+                Permission::ScheduleManage, Permission::AttendanceRecord, Permission::PaymentsRecord, Permission::GradesRecord,
+                Permission::MessagesSend, Permission::AlertsRun, Permission::PortalManage,
             ],
 
             'accountant' => [
@@ -55,11 +56,12 @@ final class RoleBlueprint
                 Permission::PaymentsView, Permission::PaymentsRecord, Permission::FinanceReports,
                 Permission::ExpensesView, Permission::ExpensesManage, Permission::PayrollView, Permission::PayrollManage,
                 Permission::PayrollPay, Permission::CashView, Permission::CashClose,
+                Permission::MessagesView, Permission::MessagesSend, Permission::TemplatesView, Permission::AlertsRun,
             ],
 
             // Teachers only see and take attendance of their own lessons (TeacherScope), nothing else.
             'teacher' => [Permission::TeachingOwn],
-            // Parent/student portals use row-level access (own children / own record), added with the portal.
+            // Portal accounts hold no permission: the portal middleware limits them to their own children / own record.
             'parent' => [],
             'student' => [],
         ];
