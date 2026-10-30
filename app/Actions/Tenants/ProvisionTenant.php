@@ -28,6 +28,7 @@ final class ProvisionTenant
                 'contact_email' => $data->contactEmail,
                 'phone' => $data->phone,
                 'trial_ends_at' => now()->addDays((int) config('saas.trial_days')),
+                'plan' => config('saas.trial_plan'),
             ]);
 
             return $this->context->run($tenant, function () use ($tenant, $data): ProvisionedTenant {

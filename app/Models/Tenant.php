@@ -20,7 +20,7 @@ class Tenant extends Model
 
     protected $fillable = [
         'name', 'slug', 'type', 'status', 'plan',
-        'contact_email', 'phone', 'trial_ends_at', 'settings',
+        'contact_email', 'phone', 'trial_ends_at', 'subscription_ends_at', 'settings',
     ];
 
     protected function casts(): array
@@ -29,6 +29,7 @@ class Tenant extends Model
             'type' => TenantType::class,
             'status' => TenantStatus::class,
             'trial_ends_at' => 'datetime',
+            'subscription_ends_at' => 'date',
             'settings' => 'array',
         ];
     }

@@ -9,47 +9,38 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Support\Audit\AuditRecorder;
+use App\Support\Auth\AuthFlow;
+use App\Support\Auth\Realm;
+use App\Support\Auth\Sessions;
+use App\Support\Billing\Subscription;
+use App\Support\Impersonation\Impersonation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Database\Eloquent\Model;
 
 final class TenantAuthController extends Controller
 {
-    /** Valid bcrypt hash used to equalize timing when the email does not exist. */
-    private const DUMMY_HASH = '$2y$12$QFSvym3EPaeTqeWJVVoXr.2dwpdy.Gm5BQDSITFGKbkoeu3AkQbSK';
+    public function __construct(private readonly AuthFlow $flow, private readonly Sessions $sessions) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
-        /** @var Tenant $tenant */
-        $tenant = $request->attributes->get('tenant');
-        $email = mb_strtolower(trim($request->validated('email')));
+        return $this->flow->login($this->realm($request), $request->validated('email'), $request->validated('password'), $request->validated('device_name'));
+    }
 
-        // The tenant scope guarantees we only ever look inside the current tenant.
-        $user = User::query()->where('email', $email)->first();
+    /** Second step of a login for accounts with two-factor authentication. */
+    public function twoFactorChallenge(Request $request): JsonResponse
+    {
+        $data = $request->validate(['challenge' => ['required', 'string', 'size:64'], 'code' => ['required', 'string', 'max:32']]);
 
-        $passwordMatches = Hash::check($request->validated('password'), $user?->password ?? self::DUMMY_HASH);
+        return $this->flow->challenge($this->realm($request), $data['challenge'], $data['code']);
+    }
 
-        if ($user === null || ! $passwordMatches || ! $user->is_active) {
-            AuditRecorder::event('auth.login_failed', ['email' => $email], (int) $tenant->getKey());
+    public function refresh(Request $request): JsonResponse
+    {
+        $data = $request->validate(['refresh_token' => ['required', 'string', 'size:64']]);
 
-            abort(401, 'Invalid credentials.');
-        }
-
-        $user->forceFill(['last_login_at' => now()])->saveQuietly();
-
-        $expiresAt = now()->addMinutes((int) config('saas.tokens.tenant_ttl_minutes'));
-        $token = $user->createToken($request->validated('device_name') ?? 'api', ['tenant'], $expiresAt);
-
-        AuditRecorder::event('auth.login', ['user_id' => $user->getKey()], (int) $tenant->getKey());
-
-        return response()->json([
-            'token' => $token->plainTextToken,
-            'token_type' => 'Bearer',
-            'expires_at' => $expiresAt->toIso8601String(),
-            'user' => new UserResource($user->load('roles')),
-        ]);
+        return $this->flow->refresh($this->realm($request), $data['refresh_token']);
     }
 
     public function me(Request $request): JsonResponse
@@ -60,24 +51,33 @@ final class TenantAuthController extends Controller
         return response()->json([
             'user' => new UserResource($user->load('roles')),
             'permissions' => $user->getAllPermissions()->pluck('name')->values(),
+            'two_factor_enabled' => $user->hasTwoFactor(),
+            'subscription' => Subscription::state($request->attributes->get('tenant')),
+            'impersonation' => ($session = Impersonation::current($request)) === null ? null
+                : ['can_write' => $session->can_write, 'expires_at' => $session->expires_at->toIso8601String(), 'reason' => $session->reason],
         ]);
     }
 
     public function logout(Request $request): Response
     {
-        /** @var User $user */
-        $user = $request->user();
-        $user->currentAccessToken()->delete();
+        $this->sessions->revokeCurrent($request->user());
 
         return response()->noContent();
     }
 
     public function logoutAll(Request $request): Response
     {
-        /** @var User $user */
-        $user = $request->user();
-        $user->tokens()->delete();
+        $this->sessions->revokeAll($request->user());
 
         return response()->noContent();
+    }
+
+    private function realm(Request $request): Realm
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('tenant');
+
+        return new Realm('user', User::class, (int) $tenant->getKey(), ['tenant'], 'auth',
+            fn (Model $user): array => ['user' => new UserResource($user->load('roles'))]);
     }
 }

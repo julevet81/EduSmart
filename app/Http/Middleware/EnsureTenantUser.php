@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Impersonation\Impersonation;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,6 +25,10 @@ final class EnsureTenantUser
 
         if (! $user->is_active) {
             abort(403, 'This account is disabled.');
+        }
+
+        if ($session = Impersonation::current($request)) {
+            Impersonation::guard($request, $session);
         }
 
         return $next($request);

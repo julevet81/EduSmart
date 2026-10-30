@@ -19,6 +19,7 @@ final class AuditLogResource extends JsonResource
             'event' => $this->event,
             'actor_type' => $this->actor_type,
             'actor_id' => $this->actor_id,
+            'impersonator_id' => $this->impersonator_id,
             'auditable_type' => $this->auditable_type,
             'auditable_id' => $this->auditable_id,
             'old_values' => $this->old_values,

@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Support\Audit\AuditRecorder;
+use App\Support\Auth\Sessions;
 use App\Support\Rbac\RoleGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 
 final class UserController extends Controller
 {
-    public function __construct(private readonly RoleGuard $guard) {}
+    public function __construct(private readonly RoleGuard $guard, private readonly Sessions $sessions) {}
 
     public function index(Request $request): AnonymousResourceCollection
     {
@@ -97,8 +98,8 @@ final class UserController extends Controller
                 ]);
             }
 
-            if ($active === false) {
-                $user->tokens()->delete();
+            if ($active === false || array_key_exists('password', $data)) {
+                $this->sessions->revokeAll($user);
             }
         });
 

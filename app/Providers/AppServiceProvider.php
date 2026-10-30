@@ -40,6 +40,7 @@ use App\Models\Term;
 use App\Models\TermRemark;
 use App\Models\Track;
 use App\Models\User;
+use App\Support\Billing\PlanLimits;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -102,6 +103,9 @@ class AppServiceProvider extends ServiceProvider
         ]);
 
         Model::shouldBeStrict((bool) config('saas.strict_models'));
+
+        // Plan quotas (active students / staff accounts) are enforced on the models themselves.
+        PlanLimits::register();
 
         Password::defaults(fn (): Password => $this->app->isProduction()
             ? Password::min(12)->letters()->mixedCase()->numbers()->symbols()->uncompromised()

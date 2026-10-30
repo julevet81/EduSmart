@@ -7,43 +7,35 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Models\PlatformAdmin;
-use App\Support\Audit\AuditRecorder;
+use App\Support\Auth\AuthFlow;
+use App\Support\Auth\Realm;
+use App\Support\Auth\Sessions;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Hash;
 
 final class PlatformAuthController extends Controller
 {
-    /** Valid bcrypt hash used to equalize timing when the email does not exist. */
-    private const DUMMY_HASH = '$2y$12$QFSvym3EPaeTqeWJVVoXr.2dwpdy.Gm5BQDSITFGKbkoeu3AkQbSK';
+    public function __construct(private readonly AuthFlow $flow, private readonly Sessions $sessions) {}
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $email = mb_strtolower(trim($request->validated('email')));
-        $admin = PlatformAdmin::query()->where('email', $email)->first();
+        return $this->flow->login($this->realm(), $request->validated('email'), $request->validated('password'), $request->validated('device_name'));
+    }
 
-        $passwordMatches = Hash::check($request->validated('password'), $admin?->password ?? self::DUMMY_HASH);
+    public function twoFactorChallenge(Request $request): JsonResponse
+    {
+        $data = $request->validate(['challenge' => ['required', 'string', 'size:64'], 'code' => ['required', 'string', 'max:32']]);
 
-        if ($admin === null || ! $passwordMatches || ! $admin->is_active) {
-            AuditRecorder::event('platform.login_failed', ['email' => $email]);
+        return $this->flow->challenge($this->realm(), $data['challenge'], $data['code']);
+    }
 
-            abort(401, 'Invalid credentials.');
-        }
+    public function refresh(Request $request): JsonResponse
+    {
+        $data = $request->validate(['refresh_token' => ['required', 'string', 'size:64']]);
 
-        $admin->forceFill(['last_login_at' => now()])->save();
-
-        $expiresAt = now()->addMinutes((int) config('saas.tokens.platform_ttl_minutes'));
-        $token = $admin->createToken($request->validated('device_name') ?? 'platform', ['platform'], $expiresAt);
-
-        AuditRecorder::event('platform.login', ['admin_id' => $admin->getKey()]);
-
-        return response()->json([
-            'token' => $token->plainTextToken,
-            'token_type' => 'Bearer',
-            'expires_at' => $expiresAt->toIso8601String(),
-            'admin' => ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email],
-        ]);
+        return $this->flow->refresh($this->realm(), $data['refresh_token']);
     }
 
     public function me(Request $request): JsonResponse
@@ -51,15 +43,26 @@ final class PlatformAuthController extends Controller
         /** @var PlatformAdmin $admin */
         $admin = $request->user();
 
-        return response()->json(['admin' => ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email]]);
+        return response()->json(['admin' => ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email], 'two_factor_enabled' => $admin->hasTwoFactor()]);
     }
 
     public function logout(Request $request): Response
     {
-        /** @var PlatformAdmin $admin */
-        $admin = $request->user();
-        $admin->currentAccessToken()->delete();
+        $this->sessions->revokeCurrent($request->user());
 
         return response()->noContent();
+    }
+
+    public function logoutAll(Request $request): Response
+    {
+        $this->sessions->revokeAll($request->user());
+
+        return response()->noContent();
+    }
+
+    private function realm(): Realm
+    {
+        return new Realm('platform_admin', PlatformAdmin::class, null, ['platform'], 'platform',
+            fn (Model $admin): array => ['admin' => ['id' => $admin->id, 'name' => $admin->name, 'email' => $admin->email]]);
     }
 }

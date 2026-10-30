@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\Auth\HasTwoFactor;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
@@ -11,7 +12,7 @@ use Laravel\Sanctum\HasApiTokens;
 /** Super-admin of the SaaS itself (not tied to any tenant). */
 class PlatformAdmin extends Authenticatable
 {
-    use HasApiTokens;
+    use HasApiTokens, HasTwoFactor;
 
     protected $fillable = ['name', 'email', 'password', 'is_active'];
 

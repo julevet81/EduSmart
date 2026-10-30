@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support\Audit;
 
 use App\Models\AuditLog;
+use App\Support\Impersonation\Impersonation;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 
@@ -53,6 +54,7 @@ final class AuditRecorder
             'tenant_id' => $tenantId,
             'actor_type' => $actor instanceof Model ? $actor->getMorphClass() : null,
             'actor_id' => $actor instanceof Model ? (string) $actor->getKey() : null,
+            'impersonator_id' => Impersonation::adminId(),
             'event' => $event,
             'auditable_type' => $auditable?->getMorphClass(),
             'auditable_id' => $auditable === null ? null : (string) $auditable->getKey(),

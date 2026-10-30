@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsurePlatformAdmin;
 use App\Http\Middleware\EnsureTenantUser;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\ResolveTenant;
+use App\Http\Middleware\SecurityHeaders;
 use App\Support\Http\Problem;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
@@ -18,7 +19,6 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
@@ -33,7 +33,13 @@ return Application::configure(basePath: dirname(__DIR__))
         // The tenant must be known BEFORE authentication so the tenant scope applies to the token's user.
         $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: ResolveTenant::class);
 
-        $middleware->api(prepend: [ForceJsonResponse::class]);
+        // Behind a reverse proxy / load balancer: TRUSTED_PROXIES=* or a comma separated list of addresses.
+        // Needed so the client IP (rate limits, audit trail) and the https scheme are the real ones.
+        if (($proxies = env('TRUSTED_PROXIES')) !== null && $proxies !== '') {
+            $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', (string) $proxies)));
+        }
+
+        $middleware->api(prepend: [ForceJsonResponse::class, SecurityHeaders::class]);
         $middleware->throttleApi('api');
     })
     ->withExceptions(function (Exceptions $exceptions): void {

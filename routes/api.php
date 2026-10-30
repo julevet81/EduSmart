@@ -3,8 +3,12 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Auth\PlatformAuthController;
+use App\Http\Controllers\Auth\SecurityController;
 use App\Http\Controllers\Auth\TenantAuthController;
+use App\Http\Controllers\Platform\ImpersonationController as PlatformImpersonationController;
+use App\Http\Controllers\Platform\PlanController;
 use App\Http\Controllers\Platform\TenantController;
+use App\Http\Controllers\Platform\TenantSubscriptionController;
 use App\Http\Controllers\Tenant\AbsenceController;
 use App\Http\Controllers\Tenant\AcademicYearController;
 use App\Http\Controllers\Tenant\AttendanceController;
@@ -14,6 +18,7 @@ use App\Http\Controllers\Tenant\FeePlanController;
 use App\Http\Controllers\Tenant\FinanceReportController;
 use App\Http\Controllers\Tenant\GroupController;
 use App\Http\Controllers\Tenant\GuardianController;
+use App\Http\Controllers\Tenant\ImpersonationController;
 use App\Http\Controllers\Tenant\HolidayController;
 use App\Http\Controllers\Tenant\InvoiceController;
 use App\Http\Controllers\Tenant\LessonController;
@@ -31,7 +36,9 @@ use App\Http\Controllers\Tenant\SubjectController;
 use App\Http\Controllers\Tenant\TeacherController;
 use App\Http\Controllers\Tenant\TermController;
 use App\Http\Controllers\Tenant\TrackController;
+use App\Http\Controllers\Tenant\SubscriptionController;
 use App\Http\Controllers\Tenant\UserController;
+use App\Http\Controllers\Tenant\UserSecurityController;
 use App\Http\Controllers\Tenant\CashController;
 use App\Http\Controllers\Tenant\ExpenseCategoryController;
 use App\Http\Controllers\Tenant\ExpenseController;
@@ -70,21 +77,51 @@ $crud = static function (string $uri, string $controller, string $permission, bo
     }
 };
 
-Route::prefix('v1')->group(function () use ($crud): void {
+/** Self-service security routes, registered for both the tenant users and the platform admins. */
+$security = static function (): void {
+    Route::post('auth/password', [SecurityController::class, 'changePassword'])->middleware('throttle:10,1');
+    Route::prefix('auth/two-factor')->middleware('throttle:10,1')->group(function (): void {
+        Route::get('/', [SecurityController::class, 'status']);
+        Route::post('setup', [SecurityController::class, 'setup']);
+        Route::post('enable', [SecurityController::class, 'enable']);
+        Route::post('disable', [SecurityController::class, 'disable']);
+        Route::post('recovery-codes', [SecurityController::class, 'regenerateRecoveryCodes']);
+    });
+};
+
+Route::prefix('v1')->group(function () use ($crud, $security): void {
 
     /*
     |--------------------------------------------------------------------------
     | Platform (super-admin) — manages tenants. No tenant context here.
     |--------------------------------------------------------------------------
     */
-    Route::prefix('platform')->group(function (): void {
+    Route::prefix('platform')->group(function () use ($security): void {
         Route::post('auth/login', [PlatformAuthController::class, 'login'])->middleware('throttle:login');
+        Route::post('auth/two-factor/challenge', [PlatformAuthController::class, 'twoFactorChallenge'])->middleware('throttle:30,1');
+        Route::post('auth/refresh', [PlatformAuthController::class, 'refresh'])->middleware('throttle:30,1');
 
-        Route::middleware(['auth:sanctum', 'platform'])->group(function (): void {
+        Route::middleware(['auth:sanctum', 'platform'])->group(function () use ($security): void {
             Route::get('auth/me', [PlatformAuthController::class, 'me']);
             Route::post('auth/logout', [PlatformAuthController::class, 'logout']);
+            Route::post('auth/logout-all', [PlatformAuthController::class, 'logoutAll']);
+            $security();
 
             Route::apiResource('tenants', TenantController::class)->except('destroy');
+
+            // Plans and manually recorded subscription payments
+            // Support login-as (audited; the institution sees every session)
+            Route::post('tenants/{tenant}/impersonate', [PlatformImpersonationController::class, 'store'])->whereNumber('tenant')->middleware('throttle:10,1');
+            Route::get('tenants/{tenant}/impersonations', [PlatformImpersonationController::class, 'index'])->whereNumber('tenant');
+            Route::post('tenants/{tenant}/impersonations/{id}/revoke', [PlatformImpersonationController::class, 'revoke'])->whereNumber(['tenant', 'id']);
+
+            Route::get('plans', [PlanController::class, 'index']);
+            Route::post('plans', [PlanController::class, 'store']);
+            Route::patch('plans/{id}', [PlanController::class, 'update'])->whereNumber('id');
+            Route::get('tenants/{tenant}/subscription', [TenantSubscriptionController::class, 'show'])->whereNumber('tenant');
+            Route::get('tenants/{tenant}/subscriptions', [TenantSubscriptionController::class, 'index'])->whereNumber('tenant');
+            Route::post('tenants/{tenant}/subscriptions', [TenantSubscriptionController::class, 'store'])->whereNumber('tenant')->middleware('throttle:30,1');
+            Route::post('tenants/{tenant}/subscriptions/{id}/void', [TenantSubscriptionController::class, 'void'])->whereNumber(['tenant', 'id']);
         });
     });
 
@@ -93,13 +130,25 @@ Route::prefix('v1')->group(function () use ($crud): void {
     | Tenant (school / center) API — every route runs inside a resolved tenant.
     |--------------------------------------------------------------------------
     */
-    Route::middleware('tenant')->group(function () use ($crud): void {
+    Route::middleware('tenant')->group(function () use ($crud, $security): void {
         Route::post('auth/login', [TenantAuthController::class, 'login'])->middleware('throttle:login');
+        Route::post('auth/two-factor/challenge', [TenantAuthController::class, 'twoFactorChallenge'])->middleware('throttle:30,1');
+        Route::post('auth/refresh', [TenantAuthController::class, 'refresh'])->middleware('throttle:30,1');
 
-        Route::middleware(['auth:sanctum', 'tenant.user'])->group(function () use ($crud): void {
+        Route::middleware(['auth:sanctum', 'tenant.user'])->group(function () use ($crud, $security): void {
             Route::get('auth/me', [TenantAuthController::class, 'me']);
             Route::post('auth/logout', [TenantAuthController::class, 'logout']);
             Route::post('auth/logout-all', [TenantAuthController::class, 'logoutAll']);
+            Route::post('auth/impersonation/end', [ImpersonationController::class, 'end']);
+            Route::get('support-access', [ImpersonationController::class, 'index'])->middleware('can:audit.view');
+            $security();
+
+            // The institution's own plan, quotas and coverage
+            Route::get('subscription', [SubscriptionController::class, 'show'])->middleware('can:settings.view');
+
+            // Administrators: help a colleague who lost the phone or locked the account
+            Route::post('users/{user}/two-factor/reset', [UserSecurityController::class, 'resetTwoFactor'])->whereNumber('user')->middleware('can:users.update');
+            Route::post('users/{user}/unlock', [UserSecurityController::class, 'unlock'])->whereNumber('user')->middleware('can:users.update');
 
             // IAM
             Route::get('users', [UserController::class, 'index'])->middleware('can:users.view');

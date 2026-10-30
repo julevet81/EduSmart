@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Tenant;
+use App\Support\Billing\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -24,6 +25,8 @@ final class TenantResource extends JsonResource
             'contact_email' => $this->contact_email,
             'phone' => $this->phone,
             'trial_ends_at' => $this->trial_ends_at?->toIso8601String(),
+            'subscription_ends_at' => $this->subscription_ends_at?->toDateString(),
+            'access_level' => Subscription::accessLevel($this->resource),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

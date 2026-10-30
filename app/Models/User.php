@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Support\Audit\Auditable;
+use App\Support\Auth\HasTwoFactor;
 use App\Support\Tenancy\BelongsToTenant;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -20,13 +21,13 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use Auditable, BelongsToTenant, HasApiTokens, HasFactory, HasRoles;
+    use Auditable, BelongsToTenant, HasApiTokens, HasFactory, HasRoles, HasTwoFactor;
 
     /** Spatie guard used for every role/permission of tenant users. */
     protected $guard_name = 'web';
 
     /** @var list<string> */
-    protected array $auditExclude = ['last_login_at'];
+    protected array $auditExclude = ['last_login_at', 'failed_login_count', 'locked_until', 'two_factor_last_step', 'two_factor_confirmed_at'];
 
     protected $fillable = ['name', 'email', 'phone', 'password', 'is_active'];
 

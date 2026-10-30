@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Guardian;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\Auth\Sessions;
+use App\Support\Billing\PlanLimits;
 use App\Support\Validation\TenantRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +19,8 @@ use Illuminate\Validation\Rules\Password;
 /** Login accounts of guardians ("parent" role) and students ("student" role), linked through profile.user_id. */
 final class PortalAccountController extends Controller
 {
+    public function __construct(private readonly Sessions $sessions) {}
+
     private const ROLES = ['guardians' => 'parent', 'students' => 'student'];
 
     public function show(string $type, string $id): JsonResponse
@@ -38,12 +42,13 @@ final class PortalAccountController extends Controller
         ]);
 
         $user = DB::transaction(function () use ($data, $profile, $type): User {
-            $user = User::query()->create([
+            // portal accounts do not count against the plan's staff quota
+            $user = PlanLimits::skipping(fn (): User => User::query()->create([
                 'name' => trim($profile->first_name.' '.$profile->last_name),
                 'email' => $data['email'],
                 'password' => $data['password'],
                 'is_active' => true,
-            ]);
+            ]));
             $user->syncRoles([self::ROLES[$type]]);
             $profile->update(['user_id' => $user->getKey()]);
 
@@ -70,7 +75,7 @@ final class PortalAccountController extends Controller
 
         DB::transaction(function () use ($user, $data): void {
             $user->update($data);
-            $user->tokens()->delete();
+            $this->sessions->revokeAll($user);
         });
 
         return response()->json(['data' => $this->present($profile, $user->refresh())]);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\Tenant;
+use App\Support\Billing\Subscription;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -35,6 +36,13 @@ final class ResolveTenant
 
         if (! $tenant->status->allowsAccess()) {
             abort(403, 'This account is suspended. Please contact support.');
+        }
+
+        // Subscription over (trial / paid period / grace): everything can still be read and people can still sign in,
+        // but nothing may be written until the institution renews.
+        if (! $request->isMethodSafe() && ! $request->is('api/v1/auth/*', 'api/v1/inbox/*')
+            && Subscription::accessLevel($tenant) === Subscription::READ_ONLY) {
+            abort(402, 'Your subscription has expired: the account is read-only until it is renewed.');
         }
 
         $this->context->set($tenant);
