@@ -19,8 +19,11 @@ final class Impersonation
         'api/v1/users/*/two-factor/reset', 'api/v1/users/*/unlock', 'api/v1/portal-accounts/*',
     ];
 
-    /** Forbidden for writes only (a support agent may look, but not hand out access). */
-    private const NO_WRITE = ['api/v1/users', 'api/v1/users/*', 'api/v1/roles', 'api/v1/roles/*'];
+    /** Forbidden for writes only (a support agent may look, but not hand out access or message people). */
+    private const NO_WRITE = [
+        'api/v1/users', 'api/v1/users/*', 'api/v1/roles', 'api/v1/roles/*',
+        'api/v1/messages', 'api/v1/messages/*', 'api/v1/alerts/*',   // support never texts the parents
+    ];
 
     public static function current(?Request $request = null): ?ImpersonationSession
     {

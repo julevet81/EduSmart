@@ -116,7 +116,15 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(30)->by('login-ip:'.$request->ip()),
         ]);
 
-        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(120)
-            ->by($request->user()?->getAuthIdentifier() ?? $request->ip()));
+        // One session cannot exhaust the API for its colleagues, and many staff behind one school router are not throttled as one.
+        // (The authenticated user is not resolved yet when this middleware runs, so the bearer token identifies the session.)
+        RateLimiter::for('api', function (Request $request): array {
+            $bearer = $request->bearerToken();
+
+            return [
+                Limit::perMinute(120)->by($bearer !== null ? 'token:'.hash('sha256', $bearer) : 'ip:'.$request->ip()),
+                Limit::perMinute(1200)->by('ceiling:'.$request->ip()),
+            ];
+        });
     }
 }

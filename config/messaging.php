@@ -19,6 +19,9 @@ return [
     // A message that keeps failing is retried until this many attempts, then marked "failed".
     'max_attempts' => (int) env('MESSAGING_MAX_ATTEMPTS', 3),
 
+    // External (SMS / WhatsApp / email) messages one institution may queue by hand per day: a stolen account cannot burn the SMS budget.
+    'daily_limit' => (int) env('MESSAGING_DAILY_LIMIT', 5000),
+
     // Largest audience of one send request.
     'broadcast_limit' => (int) env('MESSAGING_BROADCAST_LIMIT', 2000),
 ];

@@ -82,7 +82,7 @@ it('bills a month with a percentage discount and never bills the same period twi
 
 it('settles the oldest invoices first and keeps the surplus as credit', function (): void {
     [$tenant, $token, $student] = financeWorld();
-    bill($tenant, $token, now()->subMonth()->format('Y-m'));
+    bill($tenant, $token, now()->subMonthNoOverflow()->format('Y-m'));
     bill($tenant, $token, now()->format('Y-m'));
 
     $payment = pay($tenant, $token, $student->id, 700000)->assertCreated()
@@ -215,7 +215,7 @@ it('bills a term plan once per started term', function (): void {
     ])->assertCreated();
 
     bill($tenant, $token, now()->format('Y-m'))->assertJsonPath('created', 1);
-    bill($tenant, $token, now()->addMonth()->format('Y-m'))->assertJsonPath('created', 0)->assertJsonPath('skipped', 1);
+    bill($tenant, $token, now()->addMonthNoOverflow()->format('Y-m'))->assertJsonPath('created', 0)->assertJsonPath('skipped', 1);
 });
 
 it('assigns a plan to a whole group once', function (): void {

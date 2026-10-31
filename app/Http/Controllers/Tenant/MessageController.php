@@ -109,6 +109,14 @@ final class MessageController extends Controller
                 : 'The audience is empty.');
         }
 
+        if ($channel !== MessageChannel::InApp) {
+            $today = Message::query()->where('channel', '!=', MessageChannel::InApp->value)->where('created_at', '>=', today())->count();
+
+            if ($today + count($resolved['recipients']) > (int) config('messaging.daily_limit')) {
+                abort(429, 'The daily limit of '.config('messaging.daily_limit').' external messages is reached.');
+            }
+        }
+
         $result = $queue->handle(
             $channel, MessageKind::from($data['kind'] ?? MessageKind::Custom->value), $resolved['recipients'], $subject, $body, $request->user(),
         );
